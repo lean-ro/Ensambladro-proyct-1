@@ -113,3 +113,150 @@ lw s11,48(a0) # v1 descifrado
     
 fin:
     j fin
+#////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+tea_encrypt_asm:
+    
+    #preservar los registros = guarda cualquier valor que pueda tener para que no se pierda  
+    addi sp,sp,-24
+    sw s0,0(sp)
+    sw s1,4(sp)
+    sw s2,8(sp)
+    sw s3,12(sp)
+    sw s4,16(sp)
+    sw s5,20(sp)
+        
+     
+    lw t0,0(a0) # v0 carga en t0 primera parte de la palabra 
+    lw t1,4(a0) # v1 carga en t1 seguda parte de la palabra
+
+    # carga de las llaves 
+
+    lw t2,0(a1)
+    lw t3,4(a1)  # llaves 
+    lw t4,8(a1)
+    lw t5,12(a1)
+
+    li t6,0 # acumulado
+    li s0,32 # numero de vueltas 
+    li s1,0x9e3779b9 # delta
+
+
+Bucle_encrypt: #cifrado
+
+    add t6,t6,s1 # suma el acumulado con delta
+    
+   # operacion de v1 para sumar a v0 
+   
+    slli s2,t1,4 # 4 shift left
+    add s2,s2,t2 # guarda en s2 v1 con 4 shft + llave 0 
+    add s3,t1,t6 # guarda v1 + delta
+    srli s4,t1,5 # guarda en s4 v1 con 5 shit right
+    add s4,s4,t3 # suma la llave 1 
+    xor s2,s2,s3 # xor de v1 mod con v1 + delta
+    xor s2,s2,s4 # xor de v1 mod1 con v1 + delta con v1 mod2
+    add t0,t0,s2 # sumar la modificacion a v0
+    
+     # operacion de v0 para sumar a v1 
+    
+    slli s2,t0,4 # 4 shift left
+    add s2,s2,t4 # guarda en s2 v1 con 4 shft + llave 2
+    add s3,t0,t6 # guarda en s3 v0 + acumulado
+    srli s4,t0,5 # guarada en s4 v0 con 5 shit right
+    add s4,s4,t5 # suma la llave 3 
+    xor s2,s2,s3 # xor de v0 mod1 con v0 + delta
+    xor s2,s2,s4 # xor de v0 mod1 con v1 + delta con v0 mod2
+    add t1,t1,s2 # suma la modificacion a v1
+    
+    addi s0,s0,-1 # resta una de las vueltas 
+    
+    bnez s0,Bucle_encrypt # si no es cero salta a Bucle_encrypt
+    
+    sw t0,0(a0) # guarda v0 cifrado
+    sw t1,4(a0) # guarda v1 cifrado
+    
+    #restaurar los registros preservados por si tenia valores importantes hantes de utilizarlos
+    lw s0,0(sp)
+    lw s1,4(sp)
+    lw s2,8(sp)
+    lw s3,12(sp)
+    lw s4,16(sp)
+    lw s5,20(sp)
+    
+    addi sp,sp,24 #libera el stack
+    
+    ret # volver al programa de C 
+        
+tea_decrypt_asm:
+    
+    #preservar los registros
+    
+    addi sp,sp,-24
+    sw s0,0(sp)
+    sw s1,4(sp)
+    sw s2,8(sp)
+    sw s3,12(sp)
+    sw s4,16(sp)
+    sw s5,20(sp)
+    
+    #carga de palabra
+    
+    lw t0,0(a0) # carga en t0 v0 cifrado 
+    lw t1,4(a0) # carga en t1 v1 cifrado
+
+    # carga de las llaves 
+
+    lw t2,0(a1)
+    lw t3,4(a1)  # llaves 
+    lw t4,8(a1)
+    lw t5,12(a1)
+
+    li s0,32 # numero de vueltas 
+    li s1,0x9e3779b9 # delta
+    slli s5,s1,5 # acumulado luego de 32 vueltas ya que 5 shift = * 32 
+    
+Bucle_decrypt: #descifra
+
+    # operacion de v0 para restar a v1 
+    
+    slli s2,t0,4 # hace 4 shift left a v0 cifrado
+    add s2,s2,t4 # suma la llave 2
+    add s3,t0,s5 # suma v0 con el acumulado
+    srli s4,t0,5 # hace 5 shitf right
+    add s4,s4,t5 # suma la llave 3
+    xor s2,s2,s3 # xor de v0 mod 
+    xor s2,s2,s4 # xor de v0 mod 
+    sub t1,t1,s2 # resta v1 con v0 mod
+    
+    # operacion de v1 para restar a v0 
+    
+    slli s2,t1,4 # hace 4 shift left a v1 cifrado
+    add s2,s2,t2 # suma la llave 0
+    add s3,t1,s5 # suma v1 con el acumulado
+    srli s4,t1,5 # hace 5 shitf right
+    add s4,s4,t3 # suma la llave 1
+    xor s2,s2,s3 # xor de v1 mod 
+    xor s2,s2,s4 # xor de v1 mod 
+    sub t0,t0,s2 # resta v0 con v1 mod
+    
+    sub s5,s5,s1  # le resta delta al acumulado
+    addi s0,s0,-1 # decrementa una vuelta
+    
+    bnez s0,Bucle_decrypt # si no es cero salta a Bucle_decrypt
+    
+    sw t0,0(a0) # guarda v0 descifrado
+    sw t1,4(a0) # guarda v1 descifrado
+
+    #restaura registros 
+    
+    lw s0,0(sp)
+    lw s1,4(sp)
+    lw s2,8(sp)
+    lw s3,12(sp)
+    lw s4,16(sp)
+    lw s5,20(sp)
+    
+    addi sp,sp,24 #libera el stack
+    
+    ret # volver al programa de C 
+        
